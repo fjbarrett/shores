@@ -1,11 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Dashboard, ProviderAgg, RunAgg, State } from "@/lib/aggregate";
 import { ProviderLogo } from "@/lib/provider-logos";
-
-const POLL_MS = 20_000;
 
 const TONE: Record<State, { dot: string; text: string; badge: string; bar: string }> = {
   UP: {
@@ -145,17 +143,6 @@ function ProviderCard({ p }: { p: ProviderAgg }) {
   );
 }
 
-function StatTile({ label, value, tone }: { label: string; value: number | string; tone: string }) {
-  return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-3">
-      <div className={`text-2xl font-semibold tabular-nums ${tone}`}>{value}</div>
-      <div className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-slate-500">
-        {label}
-      </div>
-    </div>
-  );
-}
-
 function RunBar({ run }: { run: RunAgg }) {
   const seg = (n: number, cls: string) =>
     n > 0 ? <span className={cls} style={{ flex: n }} /> : null;
@@ -201,7 +188,6 @@ function StatusBanner({ affected }: { affected: ProviderAgg[] }) {
 export default function Home() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -218,15 +204,6 @@ export default function Home() {
     load();
   }, [load]);
 
-  useEffect(() => {
-    if (timer.current) clearInterval(timer.current);
-    timer.current = setInterval(load, POLL_MS);
-    return () => {
-      if (timer.current) clearInterval(timer.current);
-    };
-  }, [load]);
-
-  const s = data?.summary;
   const affected = (data?.providers ?? []).filter((p) => p.current.state !== "UP");
 
   return (
@@ -252,13 +229,6 @@ export default function Home() {
           {error}
         </div>
       )}
-
-      {/* summary */}
-      <section className="mt-5 grid grid-cols-3 gap-3">
-        <StatTile label="Operational" value={s?.up ?? 0} tone="text-emerald-400" />
-        <StatTile label="Degraded" value={s?.degraded ?? 0} tone="text-amber-400" />
-        <StatTile label="Down" value={(s?.down ?? 0) + (s?.unknown ?? 0)} tone="text-rose-400" />
-      </section>
 
       {/* providers */}
       {data && data.providers.length > 0 ? (
@@ -291,10 +261,6 @@ export default function Home() {
         </section>
       )}
 
-      <footer className="mt-8 border-t border-white/[0.06] pt-4 font-mono text-[11px] text-slate-600">
-        {data?.totalRecords ?? 0} records · reading{" "}
-        <code className="font-mono">results/history.jsonl</code> · refreshes every {POLL_MS / 1000}s
-      </footer>
     </div>
   );
 }

@@ -127,13 +127,27 @@ function incidentDuration(inc: Incident): string {
   return fmtDur(end - start);
 }
 
+function isImportant(inc: Incident): boolean {
+  return isOngoing(inc) || ["critical", "major", "high"].includes(inc.impact.toLowerCase());
+}
+
 function Incidents({ providerKey, incidents }: { providerKey: string; incidents: Incident[] }) {
   if (incidents.length === 0) {
     return <p className="text-sm text-slate-500">No incidents in the provider feed.</p>;
   }
+  const important = incidents.filter(isImportant);
+  const hidden = incidents.length - important.length;
+  if (important.length === 0) {
+    return (
+      <p className="text-sm text-slate-500">
+        No major or ongoing incidents — {incidents.length} minor/resolved in the feed.
+      </p>
+    );
+  }
   return (
-    <ul className="space-y-2">
-      {incidents.map((inc) => (
+    <>
+      <ul className="space-y-2">
+      {important.map((inc) => (
         <li key={inc.id} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide ring-1 ${impactCls(inc.impact)}`}>
@@ -165,7 +179,13 @@ function Incidents({ providerKey, incidents }: { providerKey: string; incidents:
           </div>
         </li>
       ))}
-    </ul>
+      </ul>
+      {hidden > 0 && (
+        <p className="mt-2 text-xs text-slate-600">
+          + {hidden} minor / resolved incident{hidden > 1 ? "s" : ""} not shown
+        </p>
+      )}
+    </>
   );
 }
 
@@ -345,9 +365,6 @@ function History({ p }: { p: ProviderAgg }) {
           observed <span className="text-slate-300">{windowMs > 0 ? fmtDur(windowMs) : "—"}</span>
         </span>
         <span>
-          scans <span className="text-slate-300">{p.samples}</span>
-        </span>
-        <span>
           state changes <span className="text-slate-300">{changes}</span>
         </span>
         <span>
@@ -449,12 +466,9 @@ export default async function ProviderPage({ params }: { params: Promise<{ key: 
 
       <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-slate-500">
         <span>
-          uptime <span className={`font-mono font-semibold ${t.text}`}>{p.uptimePct.toFixed(1)}%</span>{" "}
-          over {p.samples} scan{p.samples === 1 ? "" : "s"}
+          uptime <span className={`font-mono font-semibold ${t.text}`}>{p.uptimePct.toFixed(1)}%</span>
         </span>
-        <span>
-          {p.counts.UP} up · {p.counts.DEGRADED} degraded · {p.counts.DOWN + p.counts.UNKNOWN} down
-        </span>
+        <span>monitoring since {clock(p.history[0]?.checked_at ?? p.current.checked_at)}</span>
         <span>last checked {ago(p.current.checked_at)}</span>
         {p.current.vantage && p.current.vantage !== "local" && (
           <span className="text-sky-400">via {p.current.vantage}</span>

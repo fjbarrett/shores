@@ -73,9 +73,6 @@ function History({ points }: { points: RegionPoint[] }) {
           observed <span className="text-slate-300">{windowMs > 0 ? fmtDur(windowMs) : "—"}</span>
         </span>
         <span>
-          scans <span className="text-slate-300">{points.length}</span>
-        </span>
-        <span>
           state changes <span className="text-slate-300">{segs.length - 1}</span>
         </span>
         <span>
