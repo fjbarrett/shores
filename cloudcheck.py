@@ -62,6 +62,15 @@ TENCENT_REGIONS = ["ap-guangzhou", "ap-shanghai", "ap-beijing", "ap-chengdu",
                    "ap-nanjing", "ap-hongkong", "ap-singapore", "ap-bangkok",
                    "ap-jakarta", "ap-tokyo", "ap-seoul", "ap-mumbai",
                    "na-siliconvalley", "na-ashburn", "sa-saopaulo", "eu-frankfurt"]
+# Azure has no public per-region status feed; probe per-region Cognitive Services
+# edge endpoints instead (any HTTP response = that region's edge answered).
+AZURE_REGIONS = ["eastus", "eastus2", "westus", "westus2", "westus3", "centralus",
+                 "southcentralus", "northcentralus", "westcentralus", "canadacentral",
+                 "brazilsouth", "westeurope", "northeurope", "uksouth", "francecentral",
+                 "germanywestcentral", "switzerlandnorth", "norwayeast", "swedencentral",
+                 "polandcentral", "italynorth", "uaenorth", "qatarcentral",
+                 "southafricanorth", "eastasia", "southeastasia", "japaneast", "japanwest",
+                 "koreacentral", "australiaeast", "centralindia", "southindia"]
 
 # method (top-level verdict source):
 #   statuspage  Atlassian Statuspage v2 (.status.indicator)
@@ -93,7 +102,8 @@ PROVIDERS = [
          reach=["https://management.azure.com", "https://azure.microsoft.com",
                 "https://login.microsoftonline.com"],
          dns=["management.azure.com", "azure.microsoft.com"],
-         page="https://status.azure.com", regions=None),
+         page="https://status.azure.com",
+         regions={"kind": "probe", "tmpl": "https://{}.api.cognitive.microsoft.com", "list": AZURE_REGIONS}),
     dict(key="cloudflare", name="Cloudflare", method="statuspage",
          status="https://www.cloudflarestatus.com/api/v2/status.json",
          reach=["https://www.cloudflare.com", "https://api.cloudflare.com",
