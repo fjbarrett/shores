@@ -168,22 +168,32 @@ function RunBar({ run }: { run: RunAgg }) {
   );
 }
 
-function StatusBanner({ s }: { s?: Dashboard["summary"] }) {
-  const down = s ? s.down + s.unknown : 0;
-  const degraded = s?.degraded ?? 0;
-  const state: State = !s ? "UNKNOWN" : down > 0 ? "DOWN" : degraded > 0 ? "DEGRADED" : "UP";
-  const t = TONE[state];
-  const msg = !s
-    ? "Loading…"
-    : down > 0
-      ? `${down} provider${down > 1 ? "s" : ""} down${degraded ? ` · ${degraded} degraded` : ""}`
-      : degraded > 0
-        ? `${degraded} provider${degraded > 1 ? "s" : ""} degraded`
-        : "All systems operational";
+// Only shown when something is wrong — links straight to each affected provider.
+function StatusBanner({ affected }: { affected: ProviderAgg[] }) {
+  if (affected.length === 0) return null;
+  const worst: State = affected.some(
+    (p) => p.current.state === "DOWN" || p.current.state === "UNKNOWN"
+  )
+    ? "DOWN"
+    : "DEGRADED";
+  const t = TONE[worst];
   return (
-    <div className={`mt-5 flex items-center gap-3 rounded-xl px-4 py-3.5 ${t.badge}`}>
+    <div className={`mt-5 flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-xl px-4 py-3 ${t.badge}`}>
       <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${t.dot}`} />
-      <span className="text-base font-medium">{msg}</span>
+      {affected.map((p, i) => (
+        <span key={p.key} className="text-sm">
+          {i > 0 && <span className="opacity-50"> · </span>}
+          <Link
+            href={`/provider/${p.key}`}
+            className="font-medium underline decoration-dotted underline-offset-2 hover:no-underline"
+          >
+            {p.name}
+          </Link>{" "}
+          <span className="opacity-80">
+            {p.current.state === "DEGRADED" ? "degraded" : "down"}
+          </span>
+        </span>
+      ))}
     </div>
   );
 }
@@ -217,6 +227,7 @@ export default function Home() {
   }, [load]);
 
   const s = data?.summary;
+  const affected = (data?.providers ?? []).filter((p) => p.current.state !== "UP");
 
   return (
     <div className="mx-auto w-full max-w-[160rem] flex-1 px-5 py-6">
@@ -234,7 +245,7 @@ export default function Home() {
         </div>
       </header>
 
-      <StatusBanner s={s} />
+      <StatusBanner affected={affected} />
 
       {error && (
         <div className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-300">

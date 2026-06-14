@@ -29,6 +29,8 @@ const MONOGRAM: Record<string, string> = {
   oracle: "O",
   ibm: "IBM",
   tencent: "T",
+  anthropic: "A",
+  openai: "OAI",
 };
 
 export function ProviderLogo({ keyId }: { keyId: string }) {
