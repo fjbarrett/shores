@@ -110,7 +110,7 @@ export function ProviderCard({ p }: { p: ProviderAgg }) {
       <ProviderLogo keyId={p.key} />
       <h3 className="min-w-0 flex-1 truncate font-medium text-slate-100">{p.name}</h3>
       <div className="flex shrink-0 items-center gap-2" title={label} aria-label={label}>
-        <UptimeRing pct={p.uptimePct} stroke={t.stroke} />
+        <span className={`h-2 w-2 shrink-0 rounded-full ${t.dot}`} />
       </div>
     </Link>
   );
