@@ -20,8 +20,14 @@ Proxmox LXC 106 "shores" (192.168.0.5)          Vercel
 ```
 
 - **Proxmox host:** `192.168.0.178` (PVE 9.1.1), SSH `root@192.168.0.178` (key `~/.ssh/id_ed25519`).
-- **Container:** unprivileged Ubuntu 24.04 LXC **106 `shores`**, DHCP `192.168.0.5`, `onboot=1`.
+- **Container:** unprivileged Ubuntu 24.04 LXC **106 `shores`**, `onboot=1`. IPv4 is DHCP
+  (changes on reboot — was `.5`, currently `192.168.0.82`); find it with
+  `ssh root@192.168.0.178 'pct exec 106 -- ip -4 -o addr show eth0'`, or just drive the
+  box via the host with `pct exec 106 -- …`. IPv6 via SLAAC (`net0 ip6=auto`).
   Project at `/opt/shores`. Node 20 + Python 3.12. sshd is key-only.
+- **IPv6:** the LAN advertises a global prefix (`2600:8800:…/64`). The container has it via
+  `ip6=auto`; the Proxmox **host** needed `net.ipv6.conf.vmbr0.accept_ra=2` (it forwards for
+  guests, so `accept_ra=1` was ignored) — persisted in `/etc/sysctl.d/99-ipv6-accept-ra.conf`.
 - **Cron:** `*/30 * * * * /opt/shores/scan.sh` → full scan with 8 worldwide Globalping
   probes, then pushes results to Blob. Errors log to `/var/log/shores-scan.err`.
 - **Secrets (box only, never in this repo):** `/opt/shores/.env` (mode 600) holds
