@@ -33,7 +33,7 @@ function clock(iso: string | null): string {
 
 export async function generateMetadata({ params }: { params: Promise<{ key: string; id: string }> }) {
   const { key } = await params;
-  return { title: `incident · ${key} · fivenines` };
+  return { title: `incident · ${key} · 9s` };
 }
 
 export default async function IncidentPage({
