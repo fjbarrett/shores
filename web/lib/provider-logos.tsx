@@ -46,7 +46,7 @@ const MONOGRAM: Record<string, string> = {
 
 // Each provider's signature color, used to tint its logo + tile. Chosen for
 // legibility on the near-black UI (some official blues/darks nudged lighter).
-const BRAND: Record<string, string> = {
+export const BRAND: Record<string, string> = {
   aws: "#FF9900",
   gcp: "#4285F4",
   azure: "#38B0FF",
