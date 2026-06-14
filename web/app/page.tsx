@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import type { Dashboard, Incident, ProviderAgg, RunAgg, State } from "@/lib/aggregate";
+import type { Dashboard, Incident, ProviderAgg, State } from "@/lib/aggregate";
 import { ProviderLogo } from "@/lib/provider-logos";
 
 const TONE: Record<State, { dot: string; text: string; badge: string; bar: string }> = {
@@ -44,26 +44,9 @@ function ago(iso: string | null): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-function MethodChip({ label, ok }: { label: string; ok: boolean | null }) {
-  const cls =
-    ok === null ? "text-slate-600" : ok ? "text-emerald-400/70" : "text-rose-400";
-  const glyph = ok === null ? "·" : ok ? "✓" : "✗";
-  return (
-    <span
-      className={`inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wide ${cls}`}
-    >
-      {glyph} {label}
-    </span>
-  );
-}
-
 function ProviderCard({ p }: { p: ProviderAgg }) {
   const t = TONE[p.current.state];
   const c = p.current;
-  const globeOk =
-    c.globe_total && Number(c.globe_total) > 0
-      ? Number(c.globe_up) >= Number(c.globe_total) / 2
-      : null;
   const headline = p.detail?.headline || c.status_detail || "—";
   const regPct =
     p.regionsTotal && p.regionsTotal > 0 ? ((p.regionsUp ?? 0) / p.regionsTotal) * 100 : null;
@@ -85,10 +68,9 @@ function ProviderCard({ p }: { p: ProviderAgg }) {
       </div>
 
       <p className="mt-1.5 line-clamp-1 text-sm text-slate-400">{headline}</p>
-      {c.note && <p className="mt-1 text-xs text-amber-400/90">⚠ {c.note}</p>}
 
       {regPct !== null && (
-        <div className="mt-2.5">
+        <div className="mt-3">
           <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500">
             <span>
               <span className="font-mono text-slate-300">{p.regionsUp}</span> / {p.regionsTotal} regions
@@ -104,54 +86,11 @@ function ProviderCard({ p }: { p: ProviderAgg }) {
         </div>
       )}
 
-      {/* state timeline (oldest → newest) */}
-      <div className="mt-3 flex items-end gap-[2px]" title="scan history, oldest → newest">
-        {p.history.length === 0 && <span className="text-xs text-slate-600">no history</span>}
-        {p.history.slice(-28).map((h, i) => (
-          <span
-            key={i}
-            title={`${h.state} · ${new Date(h.checked_at).toLocaleString()}`}
-            className={`h-6 w-[5px] rounded-sm ${TONE[h.state].bar} opacity-80 hover:opacity-100`}
-          />
-        ))}
-      </div>
-
-      <div className="mt-3 flex items-center justify-between text-xs">
-        <span className="text-slate-500">
-          <span className={`font-mono font-semibold ${t.text}`}>{p.uptimePct.toFixed(1)}%</span> up
-        </span>
-        <span className="text-slate-500">{ago(c.checked_at)}</span>
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <MethodChip
-          label="status"
-          ok={c.status_state === "UNKNOWN" || c.status_state === "n/a" ? null : true}
-        />
-        <MethodChip label="http" ok={!!c.http_ok} />
-        <MethodChip label="dns" ok={!!c.dns_ok} />
-        <MethodChip label="ipv6" ok={c.ipv6_ok === null ? null : !!c.ipv6_ok} />
-        <MethodChip label="globe" ok={globeOk} />
-        {c.vantage && c.vantage !== "local" && (
-          <span className="font-mono text-[10px] text-sky-400/80">via {c.vantage}</span>
-        )}
-        <span className="ml-auto text-[11px] text-slate-600 transition group-hover:text-slate-300">
-          details →
-        </span>
+      <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+        <span>{ago(c.checked_at)}</span>
+        <span className="transition group-hover:text-slate-300">details →</span>
       </div>
     </Link>
-  );
-}
-
-function RunBar({ run }: { run: RunAgg }) {
-  const seg = (n: number, cls: string) =>
-    n > 0 ? <span className={cls} style={{ flex: n }} /> : null;
-  return (
-    <div className="flex h-8 w-3 shrink-0 flex-col-reverse overflow-hidden rounded-sm" title={new Date(run.checked_at).toLocaleString()}>
-      {seg(run.up, "bg-emerald-400")}
-      {seg(run.degraded, "bg-amber-400")}
-      {seg(run.down + run.unknown, "bg-rose-500")}
-    </div>
   );
 }
 
@@ -195,32 +134,27 @@ function TopIncident({ providers }: { providers: ProviderAgg[] }) {
   );
 }
 
-// Only shown when something is wrong — links straight to each affected provider.
+// Only shown when something is wrong — one independent, clickable pill per
+// provider, each tinted by and labeled with its own state.
 function StatusBanner({ affected }: { affected: ProviderAgg[] }) {
   if (affected.length === 0) return null;
-  const worst: State = affected.some(
-    (p) => p.current.state === "DOWN" || p.current.state === "UNKNOWN"
-  )
-    ? "DOWN"
-    : "DEGRADED";
-  const t = TONE[worst];
   return (
-    <div className={`mt-5 flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-xl px-4 py-3 ${t.badge}`}>
-      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${t.dot}`} />
-      {affected.map((p, i) => (
-        <span key={p.key} className="text-sm">
-          {i > 0 && <span className="opacity-50"> · </span>}
+    <div className="mt-5 flex flex-wrap items-center gap-1.5">
+      {affected.map((p) => {
+        const pt = TONE[p.current.state];
+        const word = p.current.state === "DEGRADED" ? "degraded" : "down";
+        return (
           <Link
+            key={p.key}
             href={`/provider/${p.key}`}
-            className="font-medium underline decoration-dotted underline-offset-2 hover:no-underline"
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition hover:brightness-125 ${pt.badge}`}
           >
-            {p.name}
-          </Link>{" "}
-          <span className="opacity-80">
-            {p.current.state === "DEGRADED" ? "degraded" : "down"}
-          </span>
-        </span>
-      ))}
+            <span className={`h-1.5 w-1.5 rounded-full ${pt.dot}`} />
+            <span className="font-medium">{p.name}</span>
+            <span className="font-mono text-[10px] uppercase tracking-wide opacity-70">{word}</span>
+          </Link>
+        );
+      })}
     </div>
   );
 }
@@ -259,7 +193,7 @@ export default function Home() {
 
       {/* providers */}
       {data && data.providers.length > 0 ? (
-        <section className="mt-6 grid gap-5 grid-cols-[repeat(auto-fill,minmax(min(20rem,100%),1fr))]">
+        <section className="mt-6 grid gap-8 grid-cols-[repeat(auto-fill,minmax(min(20rem,100%),1fr))]">
           {data.providers.map((p) => (
             <ProviderCard key={p.key} p={p} />
           ))}
@@ -273,21 +207,6 @@ export default function Home() {
           </p>
         </div>
       )}
-
-      {/* recent scans strip */}
-      {data && data.runs.length > 0 && (
-        <section className="mt-8">
-          <h2 className="mb-2 font-mono text-[10px] font-medium uppercase tracking-wider text-slate-500">
-            Recent scans
-          </h2>
-          <div className="flex items-end gap-1 overflow-x-auto rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
-            {[...data.runs].reverse().map((run) => (
-              <RunBar key={run.checked_at} run={run} />
-            ))}
-          </div>
-        </section>
-      )}
-
     </div>
   );
 }
