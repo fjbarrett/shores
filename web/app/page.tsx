@@ -32,24 +32,10 @@ const TONE: Record<State, { dot: string; text: string; badge: string; bar: strin
   },
 };
 
-function ago(iso: string | null): string {
-  if (!iso) return "never";
-  const ms = Date.now() - new Date(iso).getTime();
-  const s = Math.max(0, Math.floor(ms / 1000));
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
-
 function ProviderCard({ p }: { p: ProviderAgg }) {
   const t = TONE[p.current.state];
   const c = p.current;
   const headline = p.detail?.headline || c.status_detail || "—";
-  const regPct =
-    p.regionsTotal && p.regionsTotal > 0 ? ((p.regionsUp ?? 0) / p.regionsTotal) * 100 : null;
   return (
     <Link
       href={`/provider/${p.key}`}
@@ -69,25 +55,14 @@ function ProviderCard({ p }: { p: ProviderAgg }) {
 
       <p className="mt-1.5 line-clamp-1 text-sm text-slate-400">{headline}</p>
 
-      {regPct !== null && (
-        <div className="mt-3">
-          <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500">
-            <span>
-              <span className="font-mono text-slate-300">{p.regionsUp}</span> / {p.regionsTotal} regions
-            </span>
-            <span>{regPct.toFixed(0)}%</span>
-          </div>
-          <div className="h-1 w-full overflow-hidden rounded-full bg-white/10">
-            <div
-              className={`h-full rounded-full ${regPct >= 100 ? "bg-emerald-400" : "bg-amber-400"}`}
-              style={{ width: `${regPct}%` }}
-            />
-          </div>
-        </div>
-      )}
+      {p.regionsTotal ? (
+        <p className="mt-3 text-sm text-slate-400">
+          <span className="font-mono font-semibold text-slate-200">{p.regionsUp}</span>
+          <span className="text-slate-500"> / {p.regionsTotal}</span> regions up
+        </p>
+      ) : null}
 
-      <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-        <span>{ago(c.checked_at)}</span>
+      <div className="mt-3 flex justify-end text-xs text-slate-500">
         <span className="transition group-hover:text-slate-300">details →</span>
       </div>
     </Link>
