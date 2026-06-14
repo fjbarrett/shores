@@ -1,0 +1,19 @@
+# generated scan data
+results/
+
+# python
+__pycache__/
+*.pyc
+
+# secrets / local env (never commit) — also covered by web/.gitignore for web/
+.env
+.env.*
+*-credentials.txt
+*.token
+
+# vercel / node (top-level safety net; web/ has its own .gitignore)
+.vercel/
+node_modules/
+
+# os
+.DS_Store
