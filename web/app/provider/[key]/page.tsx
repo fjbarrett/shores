@@ -382,6 +382,15 @@ function clock(iso: string): string {
   });
 }
 
+// Bare domain of a URL (drops scheme + leading "www."), for link labels.
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
 function History({ p }: { p: ProviderAgg }) {
   const h = p.history;
   if (h.length === 0) return <p className="text-sm text-slate-500">No history recorded yet.</p>;
@@ -557,7 +566,7 @@ export default async function ProviderPage({ params }: { params: Promise<{ key: 
         )}
         {d && (
           <a href={d.page} target="_blank" rel="noreferrer" className="text-sky-400 hover:underline">
-            official status page ↗
+            {hostOf(d.page)} ↗
           </a>
         )}
       </div>
