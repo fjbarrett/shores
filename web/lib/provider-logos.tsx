@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 
 // Small, monochrome provider marks rendered inside a uniform rounded tile so
 // the dashboard stays cohesive on the dark UI. The 9 brand paths below are the
@@ -81,15 +80,15 @@ export function ProviderLogo({ keyId }: { keyId: string }) {
   return (
     <span
       className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/[0.04] ring-1 ring-white/10 transition group-hover:ring-white/20"
-      style={{ "--brand": brand } as CSSProperties}
     >
       {path ? (
-        <svg viewBox="0 0 24 24" fill="currentColor" className="brand-icon h-6 w-6" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor" className="brand-icon h-6 w-6" style={{ color: brand }} aria-hidden="true">
           <path d={path} />
         </svg>
       ) : (
         <span
           className={`brand-icon font-semibold leading-none ${mono.length > 2 ? "text-xs" : "text-sm"}`}
+          style={{ color: brand }}
         >
           {mono}
         </span>

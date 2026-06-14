@@ -40,10 +40,9 @@ body {
 /* Only the logo glyph carries the brand --brand color; the tile/background stay
    neutral. The glyph brightens slightly on card (.group) hover. */
 .brand-icon {
-  color: var(--brand);
   transition: filter 0.2s ease;
 }
 .group:hover .brand-icon {
-  filter: brightness(1.2);
+  filter: brightness(1.25);
 }
 
