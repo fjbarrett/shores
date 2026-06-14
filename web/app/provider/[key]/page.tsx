@@ -192,12 +192,13 @@ function Regions({ d }: { d: ProviderDetail }) {
   );
 }
 
-function impactCls(impact: string): string {
+// Muted, badge-less impact color — keeps incidents quiet in the list view.
+function impactTextCls(impact: string): string {
   const i = impact.toLowerCase();
-  if (["critical", "major", "high"].includes(i)) return "bg-rose-500/10 text-rose-300 ring-rose-500/30";
-  if (["minor", "medium"].includes(i)) return "bg-amber-400/10 text-amber-300 ring-amber-400/30";
-  if (i === "maintenance") return "bg-sky-400/10 text-sky-300 ring-sky-400/30";
-  return "bg-white/5 text-slate-300 ring-white/10";
+  if (["critical", "major", "high"].includes(i)) return "text-rose-400/70";
+  if (["minor", "medium"].includes(i)) return "text-amber-400/60";
+  if (i === "maintenance") return "text-sky-400/60";
+  return "text-slate-500";
 }
 function isOngoing(inc: Incident): boolean {
   return inc.status !== "resolved" && !inc.resolved_at;
@@ -228,39 +229,40 @@ function Incidents({ providerKey, incidents }: { providerKey: string; incidents:
   }
   return (
     <>
-      <ul className="space-y-2">
-      {important.map((inc) => (
-        <li key={inc.id} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide ring-1 ${impactCls(inc.impact)}`}>
-              {inc.impact}
-            </span>
-            <Link
-              href={`/provider/${providerKey}/incident/${encodeURIComponent(inc.id)}`}
-              className="min-w-0 flex-1 truncate font-medium text-slate-200 hover:underline"
-            >
-              {inc.name}
-            </Link>
-            {isOngoing(inc) ? (
-              <span className="font-mono text-xs text-amber-400">ongoing · {incidentDuration(inc)}</span>
-            ) : (
-              <span className="font-mono text-xs text-slate-500">{incidentDuration(inc)}</span>
-            )}
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[11px] text-slate-500">
-            <span>
-              {inc.started_at ? clock(inc.started_at) : "—"}
-              {inc.resolved_at ? ` → ${clock(inc.resolved_at)}` : " → now"}
-            </span>
-            {inc.components.length > 0 && (
-              <span className="truncate text-slate-600">
-                {inc.components.slice(0, 6).join(", ")}
-                {inc.components.length > 6 ? " …" : ""}
-              </span>
-            )}
-          </div>
-        </li>
-      ))}
+      <ul className="divide-y divide-white/[0.04]">
+        {important.map((inc) => {
+          const ongoing = isOngoing(inc);
+          return (
+            <li key={inc.id} className="py-1.5">
+              <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 text-xs">
+                <span className={`font-mono text-[10px] uppercase tracking-wide ${impactTextCls(inc.impact)}`}>
+                  {inc.impact}
+                </span>
+                <Link
+                  href={`/provider/${providerKey}/incident/${encodeURIComponent(inc.id)}`}
+                  className="min-w-0 flex-1 truncate text-slate-400 transition hover:text-slate-200 hover:underline"
+                >
+                  {inc.name}
+                </Link>
+                <span className={`font-mono ${ongoing ? "text-amber-400/80" : "text-slate-600"}`}>
+                  {ongoing ? `ongoing · ${incidentDuration(inc)}` : incidentDuration(inc)}
+                </span>
+              </div>
+              <div className="mt-0.5 flex flex-wrap gap-x-3 font-mono text-[10px] text-slate-600">
+                <span>
+                  {inc.started_at ? clock(inc.started_at) : "—"}
+                  {inc.resolved_at ? ` → ${clock(inc.resolved_at)}` : " → now"}
+                </span>
+                {inc.components.length > 0 && (
+                  <span className="truncate">
+                    {inc.components.slice(0, 6).join(", ")}
+                    {inc.components.length > 6 ? " …" : ""}
+                  </span>
+                )}
+              </div>
+            </li>
+          );
+        })}
       </ul>
       {hidden > 0 && (
         <p className="mt-2 text-xs text-slate-600">
@@ -531,7 +533,7 @@ export default async function ProviderPage({ params }: { params: Promise<{ key: 
   const d = p.detail;
 
   return (
-    <div className="mx-auto w-full max-w-[160rem] flex-1 px-6 py-6 lg:px-12">
+    <div className="mx-auto w-full max-w-7xl flex-1 px-6 py-6 lg:px-12">
       <Link
         href="/"
         className="font-mono text-sm text-slate-500 transition hover:text-slate-300"
@@ -577,14 +579,14 @@ export default async function ProviderPage({ params }: { params: Promise<{ key: 
         </p>
       ) : (
         <>
+          <Section title="Methods">
+            <Methods d={d} />
+          </Section>
           <Section title="Regions / components">
             <Regions d={d} />
           </Section>
           <Section title="Incidents">
             <Incidents providerKey={p.key} incidents={d.incidents ?? []} />
-          </Section>
-          <Section title="Methods">
-            <Methods d={d} />
           </Section>
         </>
       )}

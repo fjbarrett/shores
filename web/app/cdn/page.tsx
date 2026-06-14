@@ -16,8 +16,8 @@ export default async function CdnsPage() {
   const providers = (data?.providers ?? []).filter((p) => isCdn(p.key));
 
   return (
-    <div className="mx-auto w-full max-w-[160rem] flex-1 px-6 py-6 lg:px-12">
-      <Nav active="cdns" />
+    <div className="mx-auto w-full max-w-7xl flex-1 px-6 py-6 lg:px-12">
+      <Nav active="cdn" />
       <TopIncident providers={providers} />
 
       {error && (

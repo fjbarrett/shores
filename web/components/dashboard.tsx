@@ -2,26 +2,30 @@ import Link from "next/link";
 import type { Incident, ProviderAgg, State } from "@/lib/aggregate";
 import { ProviderLogo } from "@/lib/provider-logos";
 
-export const TONE: Record<State, { dot: string; text: string; badge: string }> = {
+export const TONE: Record<State, { dot: string; text: string; badge: string; stroke: string }> = {
   UP: {
     dot: "bg-emerald-400",
     text: "text-emerald-400",
     badge: "bg-emerald-400/10 text-emerald-300 ring-1 ring-emerald-400/30",
+    stroke: "stroke-emerald-400",
   },
   DEGRADED: {
     dot: "bg-amber-400",
     text: "text-amber-400",
     badge: "bg-amber-400/10 text-amber-300 ring-1 ring-amber-400/30",
+    stroke: "stroke-amber-400",
   },
   DOWN: {
     dot: "bg-rose-500",
     text: "text-rose-400",
     badge: "bg-rose-500/10 text-rose-300 ring-1 ring-rose-500/30",
+    stroke: "stroke-rose-500",
   },
   UNKNOWN: {
     dot: "bg-slate-500",
     text: "text-slate-400",
     badge: "bg-slate-500/10 text-slate-300 ring-1 ring-slate-500/30",
+    stroke: "stroke-slate-500",
   },
 };
 
@@ -42,7 +46,7 @@ export const isCdn = (key: string) => categoryOf(key) === "cdn";
 const HIDDEN = new Set<string>(["meta"]);
 export const isHidden = (key: string) => HIDDEN.has(key);
 
-export function Nav({ active }: { active: "platforms" | "cdns" }) {
+export function Nav({ active }: { active: "platforms" | "cdn" }) {
   const tab = (href: string, label: string, on: boolean) => (
     <Link
       href={href}
@@ -58,14 +62,46 @@ export function Nav({ active }: { active: "platforms" | "cdns" }) {
   return (
     <nav className="mb-6 flex items-center gap-1 text-sm">
       {tab("/", "Platforms", active === "platforms")}
-      {tab("/cdns", "CDNs", active === "cdns")}
+      {tab("/cdn", "CDNs", active === "cdn")}
     </nav>
   );
 }
 
-// Minimal: logo, name, and a pulsing status "blinker" whose color is the state.
+// Formats an uptime percentage compactly: "100%", "99.98%", "98.1%".
+function fmtUptime(pct: number): string {
+  if (pct >= 99.995) return "100%";
+  if (pct <= 0) return "0%";
+  return `${pct.toFixed(2).replace(/\.?0+$/, "")}%`;
+}
+
+// A static circular gauge whose arc length is the uptime % and whose color is the
+// current state. Replaces the old pulsing dot.
+function UptimeRing({ pct, stroke }: { pct: number; stroke: string }) {
+  const r = 11;
+  const c = 2 * Math.PI * r;
+  const filled = (Math.max(0, Math.min(100, pct)) / 100) * c;
+  return (
+    <svg viewBox="0 0 28 28" className="h-7 w-7 -rotate-90" aria-hidden="true">
+      <circle cx="14" cy="14" r={r} fill="none" strokeWidth="3" className="stroke-white/10" />
+      <circle
+        cx="14"
+        cy="14"
+        r={r}
+        fill="none"
+        strokeWidth="3"
+        strokeLinecap="round"
+        className={stroke}
+        strokeDasharray={`${filled} ${c}`}
+      />
+    </svg>
+  );
+}
+
+// Minimal: logo, name, and an uptime ring (gauge filled by recent uptime %,
+// colored by current state) with the percentage beside it.
 export function ProviderCard({ p }: { p: ProviderAgg }) {
   const t = TONE[p.current.state];
+  const label = `${p.current.state} · ${fmtUptime(p.uptimePct)} uptime over last ${p.samples} checks`;
   return (
     <Link
       href={`/provider/${p.key}`}
@@ -73,14 +109,12 @@ export function ProviderCard({ p }: { p: ProviderAgg }) {
     >
       <ProviderLogo keyId={p.key} />
       <h3 className="min-w-0 flex-1 truncate font-medium text-slate-100">{p.name}</h3>
-      <span
-        className="relative flex h-2.5 w-2.5 shrink-0"
-        title={p.current.state}
-        aria-label={p.current.state}
-      >
-        <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-60 ${t.dot}`} />
-        <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${t.dot}`} />
-      </span>
+      <div className="flex shrink-0 items-center gap-2" title={label} aria-label={label}>
+        <UptimeRing pct={p.uptimePct} stroke={t.stroke} />
+        <span className="w-12 text-right font-mono text-xs tabular-nums text-slate-400">
+          {fmtUptime(p.uptimePct)}
+        </span>
+      </div>
     </Link>
   );
 }

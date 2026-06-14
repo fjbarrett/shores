@@ -3,8 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   async redirects() {
     return [
-      // /cdn is an alias for the canonical /cdns page
-      { source: "/cdn", destination: "/cdns", permanent: true },
+      // /cdns redirects to the canonical /cdn page
+      { source: "/cdns", destination: "/cdn", permanent: true },
     ];
   },
 };

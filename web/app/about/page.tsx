@@ -16,14 +16,9 @@ export default function AboutPage() {
 
       <div className="mt-5 space-y-4 text-lg leading-relaxed text-slate-300">
         <p>
-          <span className="text-slate-100">FiveNines Availability</span> is an
-          independent dashboard that pulls every major cloud platform&rsquo;s status into one
-          view, so you can answer a single question fast:{" "}
-          <span className="text-slate-100">is it them, or is it me?</span>
-        </p>
-        <p>
-          It&rsquo;s not affiliated with any of the providers it monitors, and what it shows may
-          differ from what you&rsquo;re seeing on your own connection.
+          <span className="text-slate-100">FiveNines Availability</span> is a
+          browser-based application that regularly measures uptime and downtime of major cloud
+          providers.
         </p>
       </div>
     </div>
