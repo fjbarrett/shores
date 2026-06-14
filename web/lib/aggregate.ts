@@ -30,6 +30,7 @@ export interface RegionItem {
   name: string;
   status: string;
   ok: boolean;
+  chronic?: boolean; // down in ~every recent scan (persistently re-routed); not counted as a live outage
 }
 export interface ProviderDetail {
   key: string;
@@ -52,7 +53,7 @@ export interface ProviderDetail {
   globe:
     | { up: number; total: number; probes: { country: string; city: string; net: string; code: number | null; ok: boolean }[]; error?: string }
     | null;
-  regions: { kind: string; up: number; total: number; items: RegionItem[]; error?: string } | null;
+  regions: { kind: string; up: number; total: number; real_down?: number; chronic?: number; items: RegionItem[]; error?: string } | null;
 }
 
 export interface HistoryPoint {

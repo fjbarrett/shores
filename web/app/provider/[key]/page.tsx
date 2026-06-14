@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDashboard } from "@/lib/data";
-import type { ProviderAgg, ProviderDetail, State } from "@/lib/aggregate";
+import type { ProviderAgg, ProviderDetail, RegionItem, State } from "@/lib/aggregate";
 import { ProviderLogo } from "@/lib/provider-logos";
 
 export const dynamic = "force-dynamic";
@@ -48,14 +48,24 @@ function Regions({ d }: { d: ProviderDetail }) {
     );
   }
   const pct = (reg.up / reg.total) * 100;
-  const sorted = [...reg.items].sort((a, b) => Number(a.ok) - Number(b.ok));
+  // 0 = real outage (red), 1 = chronic re-route (amber, excluded), 2 = up
+  const rank = (i: RegionItem) => (i.chronic ? 1 : i.ok ? 2 : 0);
+  const realDown = reg.items.filter((i) => rank(i) === 0).length;
+  const chronic = reg.items.filter((i) => i.chronic).length;
+  const sorted = [...reg.items].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
   const listsAll = reg.kind !== "products";
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between text-sm">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3 text-sm">
         <span className="text-slate-300">
           <span className="font-mono font-semibold text-emerald-400">{reg.up}</span>
           <span className="text-slate-500"> / {reg.total} up</span>
+          {realDown > 0 && <span className="ml-2 font-mono text-rose-400">{realDown} down</span>}
+          {chronic > 0 && (
+            <span className="ml-2 font-mono text-amber-400/80" title="down in ~every recent scan — persistently re-routed / under maintenance, so not counted as a live outage">
+              {chronic} re-routed (excluded)
+            </span>
+          )}
           <span className="ml-2 text-xs text-slate-600">({reg.kind})</span>
         </span>
         <span className="text-xs text-slate-500">{pct.toFixed(1)}%</span>
@@ -73,18 +83,25 @@ function Regions({ d }: { d: ProviderDetail }) {
             </p>
           )}
           <div className="grid max-h-[30rem] grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-1.5 overflow-y-auto pr-1">
-            {sorted.map((it, i) => (
-              <span
-                key={i}
-                title={it.status}
-                className={`truncate rounded px-2 py-1 text-xs ring-1 ${
-                  it.ok ? "text-slate-400 ring-white/10" : "bg-rose-500/10 text-rose-300 ring-rose-500/30"
-                }`}
-              >
-                {it.ok ? "" : "● "}
-                {it.name}
-              </span>
-            ))}
+            {sorted.map((it, i) => {
+              const r = rank(it);
+              const cls =
+                r === 0
+                  ? "bg-rose-500/10 text-rose-300 ring-rose-500/30"
+                  : r === 1
+                    ? "text-amber-300/70 ring-amber-400/20"
+                    : "text-slate-400 ring-white/10";
+              return (
+                <span
+                  key={i}
+                  title={it.chronic ? `${it.status} · re-routed in ~every recent scan (excluded)` : it.status}
+                  className={`truncate rounded px-2 py-1 text-xs ring-1 ${cls}`}
+                >
+                  {r === 0 ? "● " : r === 1 ? "↻ " : ""}
+                  {it.name}
+                </span>
+              );
+            })}
           </div>
         </>
       )}
