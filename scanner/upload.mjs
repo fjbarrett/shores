@@ -1,58 +1,73 @@
-// Push scan data to Vercel Blob so the dashboard can read it. Run after each scan.
-//   shores/history.jsonl   flat history (all runs)
-//   shores/latest.json     newest full snapshot (per-region detail)
-//   shores/regions/<key>.json   per-provider region history (timeline per region)
-import { put } from '@vercel/blob';
+// Push scan data to the self-hosted DigitalOcean Postgres so the dashboard can
+// read it. Run after each scan. Idempotent + self-seeding: re-running backfills
+// anything missing.
+//   table history    flat per-provider rows (from results/history.jsonl)
+//   table snapshots  full per-run snapshot (from results/runs/<id>.json)
+// (Region timelines are derived on read from the last 90 snapshots — no longer
+//  precomputed here.)
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
+import pg from 'pg';
 
 const root = '/opt/shores';
-const token = process.env.BLOB_READ_WRITE_TOKEN;
-if (!token) { console.error('BLOB_READ_WRITE_TOKEN not set'); process.exit(1); }
+const url = process.env.DATABASE_URL;
+if (!url) { console.error('DATABASE_URL not set'); process.exit(1); }
 
-async function up(pathname, body, contentType) {
-  const { url } = await put(pathname, body, {
-    access: 'public', token, addRandomSuffix: false, allowOverwrite: true, contentType,
-  });
-  return url;
-}
+const pool = new pg.Pool({
+  connectionString: url,
+  ssl: { rejectUnauthorized: false }, // server uses a self-signed cert
+  max: 2,
+});
 
-console.log('HISTORY_URL=' + await up('shores/history.jsonl',
-  await readFile(path.join(root, 'results/history.jsonl')), 'application/x-ndjson'));
-
-const runsDir = path.join(root, 'results/runs');
-const runFiles = (await readdir(runsDir)).filter(f => f.endsWith('.json')).sort();
-if (runFiles.length) {
-  console.log('SNAPSHOT_URL=' + await up('shores/latest.json',
-    await readFile(path.join(runsDir, runFiles.at(-1))), 'application/json'));
-}
-
-// per-provider region history from the last 90 snapshots
-const snaps = [];
-for (const f of runFiles.slice(-90)) {
-  try { snaps.push(JSON.parse(await readFile(path.join(runsDir, f), 'utf8'))); } catch {}
-}
-const byProvider = new Map();
-for (const snap of snaps) {            // oldest -> newest
-  const t = snap.checked_at;
-  for (const r of snap.results || []) {
-    const reg = r.regions;
-    if (!reg || reg.error || !reg.items?.length) continue;
-    let acc = byProvider.get(r.key);
-    if (!acc) { acc = { provider: r.key, name: r.name, kind: reg.kind, regions: {} }; byProvider.set(r.key, acc); }
-    acc.name = r.name; acc.kind = reg.kind;
-    for (const it of reg.items) {
-      const e = (acc.regions[it.name] ||= { chronic: false, status: '', points: [] });
-      e.points.push({ t, ok: !!it.ok });
-      e.chronic = !!it.chronic;        // newest snapshot wins
-      e.status = it.status || '';
-    }
+try {
+  // 1) flat history rows — one batched upsert of the whole file (small),
+  //    ON CONFLICT DO NOTHING so re-runs only add genuinely new rows.
+  const histText = await readFile(path.join(root, 'results/history.jsonl'), 'utf8').catch(() => '');
+  const rows = [];
+  for (const line of histText.split('\n')) {
+    const t = line.trim();
+    if (!t) continue;
+    try {
+      const r = JSON.parse(t);
+      if (r.checked_at && r.provider) rows.push(r);
+    } catch { /* skip malformed line */ }
   }
+  let histNew = 0;
+  if (rows.length) {
+    const res = await pool.query(
+      `INSERT INTO history (checked_at, provider, row)
+       SELECT x->>'checked_at', x->>'provider', x
+       FROM jsonb_array_elements($1::jsonb) AS x
+       ON CONFLICT (checked_at, provider) DO NOTHING`,
+      [JSON.stringify(rows)]
+    );
+    histNew = res.rowCount;
+  }
+
+  // 2) run snapshots — upsert the latest always, plus any of the last 90 not
+  //    yet stored (keeps the DB in sync / self-seeds without re-sending all 90).
+  const runsDir = path.join(root, 'results/runs');
+  const runFiles = (await readdir(runsDir)).filter(f => f.endsWith('.json')).sort();
+  const recent = runFiles.slice(-90);
+  const { rows: existing } = await pool.query('SELECT checked_at FROM snapshots');
+  const have = new Set(existing.map(r => r.checked_at));
+  const latestFile = recent.at(-1); // filename ids use dashes; checked_at uses colons
+  let snapN = 0;
+  for (const f of recent) {
+    let data;
+    try { data = JSON.parse(await readFile(path.join(runsDir, f), 'utf8')); } catch { continue; }
+    if (!data.checked_at) continue;
+    if (have.has(data.checked_at) && f !== latestFile) continue; // stored already; only refresh newest
+    await pool.query(
+      `INSERT INTO snapshots (checked_at, vantage, data)
+       VALUES ($1, $2, $3::jsonb)
+       ON CONFLICT (checked_at) DO UPDATE SET vantage = EXCLUDED.vantage, data = EXCLUDED.data`,
+      [data.checked_at, data.vantage ?? null, JSON.stringify(data)]
+    );
+    snapN++;
+  }
+
+  console.log(`history: +${histNew} new rows (of ${rows.length}); snapshots upserted: ${snapN}`);
+} finally {
+  await pool.end();
 }
-let n = 0;
-for (const [key, acc] of byProvider) {
-  acc.generatedAt = new Date().toISOString();
-  await up(`shores/regions/${key}.json`, JSON.stringify(acc), 'application/json');
-  n++;
-}
-console.log('REGION_FILES=' + n + ' base=https://ikq5jc5ovm0vi9d8.public.blob.vercel-storage.com/shores/regions');

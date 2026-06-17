@@ -1,8 +1,12 @@
-// Server-only: locate and read the scan history written by the scripts.
+// Server-only: read the scan history written by the scanner. In production this
+// reads the self-hosted DigitalOcean Postgres (set DATABASE_URL); with no
+// DATABASE_URL it falls back to the local results/ tree so `npm run dev` works
+// offline. (Replaces the old Vercel Blob source.)
 import { promises as fs } from "fs";
 import path from "path";
 import { aggregate } from "./aggregate";
 import type { Row, ProviderDetail, Dashboard } from "./aggregate";
+import { getPool } from "./db";
 
 // Project root holding the scripts + results/. Defaults to the parent of the
 // web app (so `npm run dev` inside web/ finds ../results). Override with
@@ -15,52 +19,41 @@ export function historyPath(): string {
   return process.env.CLOUDCHECK_DATA || path.join(projectRoot(), "results", "history.jsonl");
 }
 
-// Fetch text over HTTP — used when scans are read from a remote store (the
-// Proxmox box pushes history.jsonl + latest snapshot to Vercel Blob).
-async function fetchText(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url, { cache: "no-store" });
-    return res.ok ? await res.text() : null;
-  } catch {
-    return null;
-  }
-}
-
 export async function readRows(): Promise<Row[]> {
-  const url = process.env.CLOUDCHECK_HISTORY_URL;
-  const text = url
-    ? await fetchText(url)
-    : await fs.readFile(historyPath(), "utf8").catch(() => null);
+  const pool = getPool();
+  if (pool) {
+    const { rows } = await pool.query<{ row: Row }>(
+      "SELECT row FROM history ORDER BY checked_at"
+    );
+    return rows.map((r) => r.row);
+  }
+  // local dev fallback: parse results/history.jsonl off disk
+  const text = await fs.readFile(historyPath(), "utf8").catch(() => null);
   if (text == null) return []; // no scans available yet
-  const rows: Row[] = [];
+  const out: Row[] = [];
   for (const line of text.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed) continue;
     try {
-      rows.push(JSON.parse(trimmed) as Row);
+      out.push(JSON.parse(trimmed) as Row);
     } catch {
       // skip a malformed/partial line rather than failing the whole dashboard
     }
   }
-  return rows;
+  return out;
 }
 
 // The newest per-run snapshot holds the full nested detail (regions, per-endpoint
 // HTTP, DoH answers, globe probes) that the flat history can't carry.
-export async function readLatestSnapshot(): Promise<{
-  checked_at: string;
-  vantage: string;
-  results: ProviderDetail[];
-} | null> {
-  const url = process.env.CLOUDCHECK_SNAPSHOT_URL;
-  if (url) {
-    const text = await fetchText(url);
-    if (!text) return null;
-    try {
-      return JSON.parse(text);
-    } catch {
-      return null;
-    }
+type Snapshot = { checked_at: string; vantage: string; results: ProviderDetail[] };
+
+export async function readLatestSnapshot(): Promise<Snapshot | null> {
+  const pool = getPool();
+  if (pool) {
+    const { rows } = await pool.query<{ data: Snapshot }>(
+      "SELECT data FROM snapshots ORDER BY checked_at DESC LIMIT 1"
+    );
+    return rows[0]?.data ?? null;
   }
   const dir = path.join(projectRoot(), "results", "runs");
   let files: string[];
@@ -93,8 +86,8 @@ export async function getDashboard(): Promise<Dashboard> {
 }
 
 // --- per-region history --------------------------------------------------- //
-// Produced by the Proxmox uploader (one file per provider) so each region gets
-// its own timeline, mirroring the provider history.
+// Derived from the most recent snapshots so each region gets its own timeline,
+// mirroring the provider history.
 export interface RegionPoint {
   t: string;
   ok: boolean;
@@ -113,36 +106,23 @@ export interface RegionFile {
 }
 
 export async function readRegionFile(key: string): Promise<RegionFile | null> {
-  const base = process.env.CLOUDCHECK_REGIONS_BASE;
-  if (base) {
-    const text = await fetchText(`${base}/${encodeURIComponent(key)}.json`);
-    if (!text) return null;
-    try {
-      return JSON.parse(text) as RegionFile;
-    } catch {
-      return null;
-    }
+  const pool = getPool();
+  if (pool) {
+    const { rows } = await pool.query<{ data: Snapshot }>(
+      "SELECT data FROM snapshots ORDER BY checked_at DESC LIMIT 90"
+    );
+    // query is newest-first; feed the builder oldest-first to match the fs path
+    return buildRegionFile(key, rows.map((r) => r.data).reverse());
   }
   return buildRegionFileFromFs(key); // local dev: reconstruct from results/runs
 }
 
-async function buildRegionFileFromFs(key: string): Promise<RegionFile | null> {
-  const dir = path.join(projectRoot(), "results", "runs");
-  let files: string[];
-  try {
-    files = (await fs.readdir(dir)).filter((f) => f.endsWith(".json")).sort();
-  } catch {
-    return null;
-  }
+// Accumulate a per-region timeline for one provider from snapshots ordered
+// oldest -> newest. Shared by the Postgres and local-fs read paths.
+function buildRegionFile(key: string, snaps: Snapshot[]): RegionFile | null {
   const out: RegionFile = { provider: key, name: key, kind: "", regions: {} };
   let found = false;
-  for (const f of files.slice(-90)) {
-    let snap: { checked_at: string; results: ProviderDetail[] };
-    try {
-      snap = JSON.parse(await fs.readFile(path.join(dir, f), "utf8"));
-    } catch {
-      continue;
-    }
+  for (const snap of snaps) {
     const r = snap.results?.find((x) => x.key === key);
     const reg = r?.regions;
     if (!r || !reg || reg.error || !reg.items?.length) continue;
@@ -157,4 +137,23 @@ async function buildRegionFileFromFs(key: string): Promise<RegionFile | null> {
     }
   }
   return found ? out : null;
+}
+
+async function buildRegionFileFromFs(key: string): Promise<RegionFile | null> {
+  const dir = path.join(projectRoot(), "results", "runs");
+  let files: string[];
+  try {
+    files = (await fs.readdir(dir)).filter((f) => f.endsWith(".json")).sort();
+  } catch {
+    return null;
+  }
+  const snaps: Snapshot[] = [];
+  for (const f of files.slice(-90)) {
+    try {
+      snaps.push(JSON.parse(await fs.readFile(path.join(dir, f), "utf8")));
+    } catch {
+      // skip unreadable snapshot
+    }
+  }
+  return buildRegionFile(key, snaps);
 }
