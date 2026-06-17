@@ -20,6 +20,17 @@ export default function AboutPage() {
           browser-based application that regularly measures uptime and downtime of major cloud
           providers.
         </p>
+        <p>
+          It&apos;s open source —{" "}
+          <a
+            href="https://github.com/fjbarrett/fivenines"
+            target="_blank"
+            rel="noreferrer"
+            className="text-sky-400 hover:underline"
+          >
+            github.com/fjbarrett/fivenines ↗
+          </a>
+        </p>
       </div>
     </div>
   );
