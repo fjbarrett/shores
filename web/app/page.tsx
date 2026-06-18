@@ -2,7 +2,10 @@ import type { Dashboard } from "@/lib/aggregate";
 import { getDashboard } from "@/lib/data";
 import { Nav, ProviderGrid, StaleBanner, TopIncident, isCdn, isHidden } from "@/components/dashboard";
 
-export const dynamic = "force-dynamic"; // always read the latest scan, server-side
+// Cache the rendered page for 60s (ISR) instead of hitting the small shared
+// droplet on every request — scans only land every 30 min, so 60s staleness is
+// invisible, and this removes a cheap traffic-amplification / cost vector.
+export const revalidate = 60;
 
 export default async function Home() {
   let data: Dashboard | null = null;

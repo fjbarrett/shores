@@ -4,7 +4,9 @@ import { getDashboard } from "@/lib/data";
 import type { Incident, ProviderAgg, ProviderDetail, RegionItem, State } from "@/lib/aggregate";
 import { ProviderLogo, providerLabel } from "@/lib/provider-logos";
 
-export const dynamic = "force-dynamic";
+// Cache per-provider page for 60s (ISR) to cap load on the shared droplet; scans
+// land every 30 min so this is invisible to users and blunts request-flood/cost abuse.
+export const revalidate = 60;
 
 const TONE: Record<State, { dot: string; text: string; badge: string; bar: string }> = {
   UP: { dot: "bg-emerald-400", text: "text-emerald-400", badge: "bg-emerald-400/10 text-emerald-300 ring-1 ring-emerald-400/30", bar: "bg-emerald-400" },
